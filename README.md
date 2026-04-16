@@ -9,3 +9,12 @@ Run the logic using:
 ```bash
 python3 calculate_return.py
 ```
+
+## Advanced Strategy
+
+Additionally, `calculate_improved_return.py` implements an optimized version of the VWAP strategy. By introducing a 0.3% threshold filter, the algorithm avoids noise and wash-out trades when the price oscillates around VWAP, significantly improving the TQQQ returns from 38% to 67%.
+
+Run the improved logic using:
+```bash
+python3 calculate_improved_return.py
+```
