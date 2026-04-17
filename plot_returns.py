@@ -51,7 +51,6 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
     df = df.with_columns(pl.col('date').str.to_datetime('%Y-%m-%d %H:%M:%S'))
     df = df.unique(subset=['date'], keep='first').sort('date')
 
-    # RTH filter: 9:30 to 15:30 (Webull forced liquidation)
     df = df.filter(
         ((pl.col('date').dt.hour() == 9) & (pl.col('date').dt.minute() >= 30)) |
         ((pl.col('date').dt.hour() >= 10) & (pl.col('date').dt.hour() < 15)) |
@@ -91,11 +90,13 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
         current_trend = 0
         current_stop = 0.0
         entry_price = 0.0
+        daily_open = 0.0
 
         for i in range(1, n):
             if dates[i] != dates[i-1]:
                 current_trend = 0
                 pos_signal[i] = 0
+                daily_open = closes[i]
                 continue
 
             curr_close = closes[i]
@@ -105,16 +106,18 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
 
             allow_entry = not (curr_time >= 1200 and curr_time < 1400)
 
+            allow_long = allow_entry and (curr_close >= daily_open * 0.985)
+            allow_short = allow_entry and (curr_close <= daily_open * 1.015)
+
             if current_trend == 0:
-                if allow_entry:
-                    if curr_close > curr_vwap * (1 + thresh):
-                        current_trend = 1
-                        current_stop = curr_close - multiplier * curr_atr
-                        entry_price = curr_close
-                    elif curr_close < curr_vwap * (1 - thresh):
-                        current_trend = -1
-                        current_stop = curr_close + multiplier * curr_atr
-                        entry_price = curr_close
+                if allow_long and curr_close > curr_vwap * (1 + thresh):
+                    current_trend = 1
+                    current_stop = curr_close - multiplier * curr_atr
+                    entry_price = curr_close
+                elif allow_short and curr_close < curr_vwap * (1 - thresh):
+                    current_trend = -1
+                    current_stop = curr_close + multiplier * curr_atr
+                    entry_price = curr_close
             else:
                 if current_trend == 1 and curr_close >= entry_price * (1 + tp):
                     current_trend = 0
@@ -160,7 +163,7 @@ if __name__ == "__main__":
     returns = [(x / initial_cap - 1) * 100 for x in df_daily['equity'].to_list()]
 
     plt.figure(figsize=(10, 6))
-    plt.plot(dates, returns, label='TQQQ Smooth VWAP+ATR Strategy (Win-Rate Focused)', color='green')
+    plt.plot(dates, returns, label='TQQQ Smooth VWAP+ATR Strategy (Trend Filtered)', color='green')
     plt.title('Total Return (%) Over Time')
     plt.xlabel('Date')
     plt.ylabel('Total Return (%)')

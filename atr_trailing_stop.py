@@ -39,7 +39,7 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
     df = df.with_columns(pl.col('date').str.to_datetime('%Y-%m-%d %H:%M:%S'))
     df = df.unique(subset=['date'], keep='first').sort('date')
 
-    # RTH filter: 9:30 to 15:30 (account for Webull forced liquidation 30 mins before close)
+    # RTH filter: 9:30 to 15:30 (Webull forced liquidation)
     df = df.filter(
         ((pl.col('date').dt.hour() == 9) & (pl.col('date').dt.minute() >= 30)) |
         ((pl.col('date').dt.hour() >= 10) & (pl.col('date').dt.hour() < 15)) |
@@ -47,7 +47,6 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
     )
     df = df.with_columns(pl.col('date').dt.date().alias('day'))
 
-    # VWAP
     df = df.with_columns(typical_price=(pl.col('high') + pl.col('low') + pl.col('close')) / 3.0)
     df = df.with_columns(vp=pl.col('typical_price') * pl.col('volume'))
 
@@ -57,7 +56,6 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
     ])
     df = df.with_columns(vwap=pl.col('cum_vp') / pl.col('cum_vol'))
 
-    # ATR
     df = df.with_columns(prev_close=pl.col('close').shift(1))
     df = df.with_columns(
         tr1=(pl.col('high') - pl.col('low')),
@@ -78,15 +76,17 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
         n = len(closes)
         pos_signal = np.zeros(n, dtype=np.int32)
 
-        current_trend = 0 # 1 Long, -1 Short, 0 Flat
+        current_trend = 0
         current_stop = 0.0
         entry_price = 0.0
 
+        daily_open = 0.0
+
         for i in range(1, n):
-            # End of day reset
             if dates[i] != dates[i-1]:
                 current_trend = 0
                 pos_signal[i] = 0
+                daily_open = closes[i]
                 continue
 
             curr_close = closes[i]
@@ -94,24 +94,24 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
             curr_atr = atrs[i]
             curr_time = times[i]
 
-            # Lunch time filter: avoid entering new trades between 12:00 and 14:00 (midday chop)
             allow_entry = not (curr_time >= 1200 and curr_time < 1400)
 
-            # Entry logic
-            if current_trend == 0:
-                if allow_entry:
-                    if curr_close > curr_vwap * (1 + thresh):
-                        current_trend = 1
-                        current_stop = curr_close - multiplier * curr_atr
-                        entry_price = curr_close
-                    elif curr_close < curr_vwap * (1 - thresh):
-                        current_trend = -1
-                        current_stop = curr_close + multiplier * curr_atr
-                        entry_price = curr_close
-            else:
-                # Active position
+            # Drawdown protection: Do not counter-trade a huge daily directional crash/squeeze.
+            # E.g., if we are down more than 1.5% for the day, don't try to go long (dead cat bounce).
+            # If we are up more than 1.5% for the day, don't try to go short.
+            allow_long = allow_entry and (curr_close >= daily_open * 0.985)
+            allow_short = allow_entry and (curr_close <= daily_open * 1.015)
 
-                # Check Take Profit to secure guaranteed absolute wins
+            if current_trend == 0:
+                if allow_long and curr_close > curr_vwap * (1 + thresh):
+                    current_trend = 1
+                    current_stop = curr_close - multiplier * curr_atr
+                    entry_price = curr_close
+                elif allow_short and curr_close < curr_vwap * (1 - thresh):
+                    current_trend = -1
+                    current_stop = curr_close + multiplier * curr_atr
+                    entry_price = curr_close
+            else:
                 if current_trend == 1 and curr_close >= entry_price * (1 + tp):
                     current_trend = 0
                 elif current_trend == -1 and curr_close <= entry_price * (1 - tp):
@@ -120,13 +120,11 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
                     if current_trend == 1:
                         new_stop = curr_close - multiplier * curr_atr
                         current_stop = max(current_stop, new_stop)
-
                         if curr_close < current_stop:
                             current_trend = 0
                     elif current_trend == -1:
                         new_stop = curr_close + multiplier * curr_atr
                         current_stop = min(current_stop, new_stop)
-
                         if curr_close > current_stop:
                             current_trend = 0
 
@@ -146,4 +144,4 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
 
 if __name__ == "__main__":
     tqqq_cap = run_vwap_with_atr_exit('tqqq_1min_historical_data.csv', atr_period=21, atr_mult=15.0, threshold=0.003, tp_pct=0.007)
-    print(f"VWAP Entry + ATR Exit + Fixed TP TQQQ: {(tqqq_cap / 25000 - 1) * 100:.2f}%")
+    print(f"VWAP Entry + ATR Exit + Pure Trend TQQQ: {(tqqq_cap / 25000 - 1) * 100:.2f}%")
