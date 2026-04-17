@@ -4,20 +4,27 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 @numba.njit
-def simulate_trading_with_equity_curve(dates, opens, closes, pos, initial_capital=25000.0, commission=0.0005):
+def simulate_trading_with_equity_curve(dates, opens, closes, pos, initial_capital=25000.0, commission=0.0005, max_daily_loss=0.04):
     capital = initial_capital
     shares = 0.0
     curr_pos = 0
     n = len(opens)
     equity_curve = np.zeros(n)
 
+    daily_start_capital = capital
+    stopped_out_for_day = False
+
     for i in range(n):
+        if i > 0 and dates[i] != dates[i-1]:
+            daily_start_capital = capital
+            stopped_out_for_day = False
+
         target_pos = pos[i]
-        if i == n - 1 or dates[i+1] != dates[i]:
+        if i == n - 1 or dates[i+1] != dates[i] or stopped_out_for_day:
             target_pos = 0
 
         if target_pos != curr_pos:
-            price = closes[i] if (target_pos == 0 and (i == n-1 or dates[i+1] != dates[i])) else opens[i]
+            price = closes[i] if (target_pos == 0 and (i == n-1 or dates[i+1] != dates[i] or stopped_out_for_day)) else opens[i]
             if curr_pos == 1:
                 capital += shares * price
                 capital -= shares * commission
@@ -42,11 +49,15 @@ def simulate_trading_with_equity_curve(dates, opens, closes, pos, initial_capita
         elif curr_pos == -1:
             current_equity -= shares * closes[i]
 
+        # Stop trading if equity drops below 4% for the day
+        if not stopped_out_for_day and current_equity < daily_start_capital * (1 - max_daily_loss):
+            stopped_out_for_day = True
+
         equity_curve[i] = current_equity
 
     return equity_curve
 
-def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.003, tp_pct=0.007):
+def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.003, tp_pct=0.01):
     df = pl.read_csv(file_path)
     df = df.with_columns(pl.col('date').str.to_datetime('%Y-%m-%d %H:%M:%S'))
     df = df.unique(subset=['date'], keep='first').sort('date')
@@ -106,6 +117,7 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.
 
             allow_entry = not (curr_time >= 1200 and curr_time < 1400)
 
+            # Trend filter
             allow_long = allow_entry and (curr_close >= daily_open * 0.985)
             allow_short = allow_entry and (curr_close <= daily_open * 1.015)
 
@@ -163,7 +175,7 @@ if __name__ == "__main__":
     returns = [(x / initial_cap - 1) * 100 for x in df_daily['equity'].to_list()]
 
     plt.figure(figsize=(10, 6))
-    plt.plot(dates, returns, label='TQQQ Smooth VWAP+ATR Strategy (Trend Filtered)', color='green')
+    plt.plot(dates, returns, label='TQQQ VWAP+ATR (Trend Filter + 4% Max Daily Loss)', color='red')
     plt.title('Total Return (%) Over Time')
     plt.xlabel('Date')
     plt.ylabel('Total Return (%)')
