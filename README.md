@@ -26,3 +26,11 @@ Run the strategy using:
 ```bash
 python3 atr_trailing_stop.py
 ```
+
+## Plotting Returns
+The repository also includes `plot_returns.py` which tracks the day-by-day simulated portfolio balance and saves a line chart of the cumulative percentage return to `return_plot.png`.
+
+```bash
+pip install matplotlib
+python3 plot_returns.py
+```
