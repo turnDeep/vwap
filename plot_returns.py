@@ -47,7 +47,7 @@ def simulate_trading_with_equity_curve(dates, opens, closes, pos, initial_capita
 
     return equity_curve
 
-def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=8.0, threshold=0.003):
+def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.003):
     df = pl.read_csv(file_path)
     df = df.with_columns(pl.col('date').str.to_datetime('%Y-%m-%d %H:%M:%S'))
     df = df.unique(subset=['date'], keep='first').sort('date')
@@ -146,7 +146,7 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=8.0, threshold=0.0
     return df_daily
 
 if __name__ == "__main__":
-    df_daily = run_vwap_with_atr_exit('tqqq_1min_historical_data.csv', atr_period=21, atr_mult=8.0, threshold=0.003)
+    df_daily = run_vwap_with_atr_exit('tqqq_1min_historical_data.csv', atr_period=21, atr_mult=15.0, threshold=0.003)
 
     # Calculate percentage return
     initial_cap = 25000.0

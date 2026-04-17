@@ -34,7 +34,7 @@ def simulate_trading(dates, opens, closes, pos, initial_capital=25000.0, commiss
             curr_pos = target_pos
     return capital
 
-def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=8.0, threshold=0.003):
+def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=15.0, threshold=0.003):
     df = pl.read_csv(file_path)
     df = df.with_columns(pl.col('date').str.to_datetime('%Y-%m-%d %H:%M:%S'))
     df = df.unique(subset=['date'], keep='first').sort('date')
@@ -134,5 +134,5 @@ def run_vwap_with_atr_exit(file_path, atr_period=21, atr_mult=8.0, threshold=0.0
     return simulate_trading(dates_int, opens, closes, pos)
 
 if __name__ == "__main__":
-    tqqq_cap = run_vwap_with_atr_exit('tqqq_1min_historical_data.csv', atr_period=21, atr_mult=8.0, threshold=0.003)
-    print(f"VWAP Entry (0.3% Thresh) + ATR Exit TQQQ (Webull Forced Close): {(tqqq_cap / 25000 - 1) * 100:.2f}%")
+    tqqq_cap = run_vwap_with_atr_exit('tqqq_1min_historical_data.csv', atr_period=21, atr_mult=15.0, threshold=0.003)
+    print(f"VWAP Entry (0.3% Thresh) + High-WinRate ATR Exit TQQQ: {(tqqq_cap / 25000 - 1) * 100:.2f}%")
