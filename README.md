@@ -1,36 +1,53 @@
-# VWAP Trend Trading Strategy Implementation
+# TQQQ / SQQQ Intraday VWAP Trading System
 
-This repository contains an implementation of the VWAP Trend Trading Strategy as described in the provided paper. It calculates the return using QQQ and TQQQ 1-minute historical data over the specific period provided in the CSV files.
+English | [日本語](./README.ja.md)
 
-The main calculation engine is built using `polars` for highly-performant vectorization data processing, and `numba` to handle the rapid sequential simulation tracking capital, accurate position sizing, and commission deductions without look-ahead bias.
+This repository is an automated intraday trading system dedicated to TQQQ and SQQQ, utilizing a 1-minute VWAP + ATR Trailing Stop strategy. The original ML-based Stallion engine has been entirely replaced with a highly optimized, lightning-fast Numba execution loop. It natively implements a "Cash Account Restriction" safety lock (maximum 1 buy transaction per symbol per day) to circumvent Good Faith Violation (GFV) penalties associated with T+1 cash settlement rules while remaining immensely profitable.
 
-## Execution
-Run the logic using:
+## Overview
+
+- **Target Assets**: TQQQ (Long), SQQQ (Inverse for Short exposure)
+- **Strategy**: 1-minute VWAP Crossover + ATR Trailing Stop
+- **Optimized Parameters**: `ATR Period = 9`, `ATR Multiplier = 27.15`, `VWAP Threshold = 0.063%`
+- **Trading Rules**: Fully compliant with Cash Accounts. The system will strictly execute at most 1 Long entry for TQQQ and 1 Long entry for SQQQ per day. This acts as a robust filter against sideways, highly volatile "chop" markets.
+- **End of Day Flattening**: Forces all open positions to be liquidated at 15:58 (NY Time) to completely eliminate overnight risk.
+
+## Operating Modes
+
+Depends entirely on the `.env` settings.
+
+- `LIVE` mode:
+  - Enabled when `WEBULL_APP_KEY`, `WEBULL_APP_SECRET`, and `WEBULL_ACCOUNT_ID` are fully set.
+- `DEMO` mode:
+  - Automatically falls back to Demo mode if any Webull credentials are missing. Generates fully accurate signals and Discord notifications without routing real money orders.
+
+## How It Works
+
+1. **Data Ingestion**: Polls high-frequency 1-minute live quotes for TQQQ and SQQQ via the FMP (Financial Modeling Prep) API.
+2. **Aggregator & Math Engine**: The `QuoteBarAggregator` assembles exact 1-minute boundary bars (Typical Price & Cumulative Volume). VWAP and ATR are computed instantaneously using JIT-compiled Numba code.
+3. **Signal Generation**:
+   - If TQQQ Close crosses above `VWAP * (1 + 0.063%)` -> Buy TQQQ (Uptrend)
+   - If TQQQ Close crosses below `VWAP * (1 - 0.063%)` -> Buy SQQQ (Downtrend)
+4. **Execution & Cash Bounds**: 
+   - When a buy signal triggers, the system automatically issues a SELL order for the counter-asset (if holding) before placing the BUY order. 
+   - If the system attempts to buy a ticker that has *already* been bought earlier in the day, the signal is ignored (remains FLAT) to avoid triggering a GFV.
+5. **EOD Flat**: Liquidates the portfolio unconditionally at exactly 15:58.
+
+## Discord Notifications
+
+Set `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` to receive real-time webhook updates:
+- Pre-market status / BP check
+- Executed / Skipped Buy Orders
+- EOD Market Close Summaries
+
+## Running the Bot
+
 ```bash
-python3 calculate_return.py
+python master_scheduler.py
 ```
 
-## Advanced Strategy
-
-Additionally, `calculate_improved_return.py` implements an optimized version of the VWAP strategy. By introducing a 0.3% threshold filter, the algorithm avoids noise and wash-out trades when the price oscillates around VWAP, significantly improving the TQQQ returns from 38% to 67%.
-
-Run the improved logic using:
-```bash
-python3 calculate_improved_return.py
-```
-
-## ATR Trailing Stop Strategy
-The file `atr_trailing_stop.py` incorporates an ATR (Average True Range) trailing stop approach combined with a VWAP entry filter. It calculates a dynamic stop loss that tightens around the price during a trend to lock in profits, achieving +201.23% return on the TQQQ dataset.
-
-Run the strategy using:
-```bash
-python3 atr_trailing_stop.py
-```
-
-## Plotting Returns
-The repository also includes `plot_returns.py` which tracks the day-by-day simulated portfolio balance and saves a line chart of the cumulative percentage return to `return_plot.png`.
+## Docker Deployment
 
 ```bash
-pip install matplotlib
-python3 plot_returns.py
+docker compose up -d --build
 ```

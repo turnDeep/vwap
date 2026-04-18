@@ -1,0 +1,12 @@
+pandas
+numpy
+requests
+python-dotenv
+tqdm
+yfinance
+curl-cffi
+beautifulsoup4
+schedule
+scikit-learn
+pyarrow
+pytz

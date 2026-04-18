@@ -1,0 +1,27 @@
+services:
+  trading-bot:
+    build: .
+    container_name: webull-trading-bot
+    restart: always
+    environment:
+      - WEBULL_APP_KEY=${WEBULL_APP_KEY}
+      - WEBULL_APP_SECRET=${WEBULL_APP_SECRET}
+      - WEBULL_ACCOUNT_ID=${WEBULL_ACCOUNT_ID}
+      - FMP_API_KEY=${FMP_API_KEY}
+      - TZ=America/New_York
+    env_file:
+      - .env
+    volumes:
+      - stallion-data:/app/data
+      - stallion-reports:/app/reports
+    healthcheck:
+      test: ["CMD", "python", "-m", "stallion.watchdog"]
+      interval: 60s
+      timeout: 15s
+      retries: 3
+      start_period: 900s
+    command: python master_scheduler.py
+
+volumes:
+  stallion-data:
+  stallion-reports:
