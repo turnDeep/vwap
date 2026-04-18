@@ -42,6 +42,9 @@ class RuntimeConfig:
     vwap_atr_mult: float = 27.15193
     vwap_threshold: float = 0.0006317
     
+    # Position Sizing
+    position_size_pct: float = 0.90
+    
     min_minutes_from_open: int = 5
     max_minutes_from_open: int = 90
     threshold_floor: float = 0.55
@@ -141,9 +144,13 @@ def load_settings(root_dir: str | Path | None = None) -> Settings:
         )
     )
     demo_mode = not webull_live_ready
+    
+    position_size_pct_env = os.getenv("POSITION_SIZE_PCT")
+    position_size_pct = float(position_size_pct_env) / 100.0 if position_size_pct_env else 0.90
+
     settings = Settings(
         credentials=credentials,
-        runtime=RuntimeConfig(),
+        runtime=RuntimeConfig(position_size_pct=position_size_pct),
         costs=CostConfig(),
         paths=_build_paths(root),
         demo_mode=demo_mode,
