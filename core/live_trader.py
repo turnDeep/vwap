@@ -845,6 +845,8 @@ def run_live_trader(settings: Settings | None = None) -> None:
             except Exception:
                 current_buying_power = 0.0
                 
+            target_buying_power = current_buying_power * settings.runtime.position_size_pct
+                
             slot = slot_manager.next_available_slot()
             if slot is None:
                 LOGGER.warning("No slots available despite closing.")
@@ -852,7 +854,7 @@ def run_live_trader(settings: Settings | None = None) -> None:
 
             sizing = compute_order_quantity(
                 slot_budget=opening_buying_power,
-                effective_buying_power=current_buying_power, # Use all available settled cash
+                effective_buying_power=target_buying_power, # Use scaled cash based on PCT setting
                 expected_price=latest_close,
                 fractional_shares_enabled=settings.runtime.fractional_shares_enabled,
             )
