@@ -2,7 +2,7 @@
 
 English | [日本語](./README.ja.md)
 
-This repository is an automated intraday trading system dedicated to TQQQ and SQQQ, utilizing a 1-minute VWAP + ATR Trailing Stop strategy. The original ML-based Stallion engine has been entirely replaced with a highly optimized, lightning-fast Numba execution loop. It natively implements a "Cash Account Restriction" safety lock (maximum 1 buy transaction per symbol per day) to circumvent Good Faith Violation (GFV) penalties associated with T+1 cash settlement rules while remaining immensely profitable.
+This repository is an automated intraday trading system dedicated to TQQQ and SQQQ, utilizing a 1-minute VWAP + ATR Trailing Stop strategy. It natively implements a "Cash Account Restriction" safety lock (maximum 1 buy transaction per symbol per day) to circumvent Good Faith Violation (GFV) penalties associated with T+1 cash settlement rules while remaining immensely profitable.
 
 ## Overview
 
