@@ -262,21 +262,26 @@ def main():
     
     # ML Pipeline removed (VWAP does not need it)
     
-    # Live bot: loads the saved model + shortlist and starts polling before the open.
-    schedule.every().monday.at("09:25").do(run_daily_trading_bot)
-    schedule.every().tuesday.at("09:25").do(run_daily_trading_bot)
-    schedule.every().wednesday.at("09:25").do(run_daily_trading_bot)
-    schedule.every().thursday.at("09:25").do(run_daily_trading_bot)
-    schedule.every().friday.at("09:25").do(run_daily_trading_bot)
+    logger.info("Scheduler loop started. Waiting for 09:25 AM NY time...")
     
-    logger.info("Scheduler loops configured. Waiting for next assigned task...")
+    last_run_date = None
     
     # Main infinite loop
     while True:
         if STORE is not None:
             STORE.write_heartbeat("master_scheduler", "idle", {})
-        schedule.run_pending()
-        time.sleep(60) # check every minute
+            
+        now_ny = datetime.datetime.now(pytz.timezone('America/New_York'))
+        
+        # Weekdays only
+        if now_ny.weekday() < 5:
+            # If current time is past 9:25 AM NY time, but before 16:00, and we haven't run today
+            if (now_ny.hour > 9 or (now_ny.hour == 9 and now_ny.minute >= 25)) and now_ny.hour < 16:
+                if last_run_date != now_ny.date():
+                    run_daily_trading_bot()
+                    last_run_date = now_ny.date()
+                    
+        time.sleep(30) # check every 30 seconds
 
 if __name__ == "__main__":
     main()
